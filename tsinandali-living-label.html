@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>Chateau Tsinandali — Living Label</title>
+
+  <!-- Mind AR + A-Frame (A-Frame must come first) -->
+  <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
+
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: #0a0500;
+      font-family: Georgia, 'Times New Roman', serif;
+      overflow: hidden;
+      height: 100vh;
+      width: 100vw;
+    }
+
+    /* ── Loading screen ── */
+    #loading {
+      position: fixed; inset: 0; z-index: 100;
+      background: #0a0500;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 20px;
+      transition: opacity 0.8s ease;
+    }
+    #loading.hidden { opacity: 0; pointer-events: none; }
+
+    .loading-crest {
+      font-size: 60px;
+      animation: breathe 2s ease-in-out infinite;
+    }
+    @keyframes breathe {
+      0%, 100% { transform: scale(1); opacity: 0.8; }
+      50%       { transform: scale(1.06); opacity: 1; }
+    }
+
+    .loading-title {
+      color: #d4a840;
+      font-size: 22px;
+      letter-spacing: 0.12em;
+    }
+    .loading-sub {
+      color: #8a6a30;
+      font-size: 12px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+    }
+
+    .spinner {
+      width: 36px; height: 36px;
+      border: 2px solid #3a2800;
+      border-top-color: #d4a840;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .loading-hint {
+      color: #6a5020;
+      font-size: 11px;
+      letter-spacing: 0.1em;
+      text-align: center;
+      max-width: 260px;
+      line-height: 1.6;
+    }
+
+    /* ── Instruction overlay ── */
+    #instructions {
+      position: fixed; inset: 0; z-index: 90;
+      background: rgba(5, 2, 0, 0.82);
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 18px;
+      transition: opacity 0.6s ease;
+    }
+    #instructions.hidden { opacity: 0; pointer-events: none; }
+
+    .inst-icon { font-size: 54px; }
+    .inst-title {
+      color: #d4a840;
+      font-size: 20px;
+      letter-spacing: 0.1em;
+    }
+    .inst-body {
+      color: #c8b080;
+      font-size: 14px;
+      text-align: center;
+      line-height: 1.7;
+      max-width: 280px;
+    }
+    .inst-steps {
+      display: flex; flex-direction: column; gap: 10px;
+      max-width: 280px; width: 100%;
+    }
+    .inst-step {
+      display: flex; align-items: center; gap: 12px;
+      background: rgba(180, 130, 40, 0.08);
+      border: 0.5px solid rgba(180, 130, 40, 0.25);
+      border-radius: 10px;
+      padding: 10px 14px;
+    }
+    .inst-step-num {
+      width: 24px; height: 24px; border-radius: 50%;
+      background: rgba(212, 168, 64, 0.2);
+      color: #d4a840;
+      font-size: 12px;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .inst-step-text { color: #c8b080; font-size: 13px; line-height: 1.4; }
+
+    .btn-start {
+      background: #d4a840;
+      color: #0a0500;
+      border: none;
+      padding: 14px 36px;
+      border-radius: 30px;
+      font-size: 14px;
+      letter-spacing: 0.1em;
+      cursor: pointer;
+      font-family: Georgia, serif;
+      transition: background 0.2s, transform 0.1s;
+    }
+    .btn-start:hover { background: #e8bc54; }
+    .btn-start:active { transform: scale(0.97); }
+
+    /* ── HUD bar (top) ── */
+    #hud {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 50;
+      padding: 14px 18px;
+      display: flex; align-items: center; justify-content: space-between;
+      background: linear-gradient(to bottom, rgba(5,2,0,0.7) 0%, transparent 100%);
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.6s ease;
+    }
+    #hud.visible { opacity: 1; }
+
+    .hud-logo {
+      color: #d4a840;
+      font-size: 15px;
+      letter-spacing: 0.14em;
+    }
+    .hud-sub {
+      color: #8a6a30;
+      font-size: 10px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+    }
+    .hud-badge {
+      display: flex; align-items: center; gap: 6px;
+      background: rgba(212, 168, 64, 0.15);
+      border: 0.5px solid rgba(212, 168, 64, 0.4);
+      border-radius: 20px;
+      padding: 5px 10px;
+      pointer-events: all;
+    }
+    .hud-dot {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: #d4a840;
+      animation: pulse 1.8s ease-in-out infinite;
+    }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+    .hud-badge-text { color: #d4a840; font-size: 11px; letter-spacing: 0.08em; }
+
+    /* ── Found / story panel ── */
+    #story-panel {
+      position: fixed; bottom: 0; left: 0; right: 0; z-index: 50;
+      background: linear-gradient(to top, rgba(5,2,0,0.95) 0%, rgba(5,2,0,0.6) 70%, transparent 100%);
+      padding: 0 20px 36px;
+      transform: translateY(100%);
+      transition: transform 0.7s cubic-bezier(0.25, 0.8, 0.25, 1);
+    }
+    #story-panel.visible { transform: translateY(0); }
+
+    .panel-divider {
+      width: 40px; height: 1px;
+      background: #d4a840;
+      margin: 0 auto 16px;
+      opacity: 0.6;
+    }
+    .panel-estate { color: #8a6a30; font-size: 10px; letter-spacing: 0.22em; text-align: center; margin-bottom: 4px; }
+    .panel-title  { color: #d4a840; font-size: 22px; letter-spacing: 0.08em; text-align: center; margin-bottom: 4px; }
+    .panel-region { color: #a08050; font-size: 11px; letter-spacing: 0.18em; text-align: center; margin-bottom: 14px; }
+
+    .story-text {
+      color: #c8b080;
+      font-size: 13px;
+      line-height: 1.75;
+      text-align: center;
+      max-width: 340px;
+      margin: 0 auto 18px;
+      font-family: Georgia, serif;
+    }
+
+    .facts-row {
+      display: flex; justify-content: center; gap: 0;
+      border-top: 0.5px solid rgba(180,130,40,0.2);
+      border-bottom: 0.5px solid rgba(180,130,40,0.2);
+      margin-bottom: 16px;
+    }
+    .fact {
+      flex: 1; padding: 12px 8px; text-align: center;
+      border-right: 0.5px solid rgba(180,130,40,0.2);
+    }
+    .fact:last-child { border-right: none; }
+    .fact-val { color: #d4a840; font-size: 15px; font-weight: bold; margin-bottom: 2px; }
+    .fact-label { color: #7a5a28; font-size: 9px; letter-spacing: 0.14em; text-transform: uppercase; }
+
+    .btn-row { display: flex; gap: 10px; justify-content: center; }
+    .btn-outline {
+      border: 0.5px solid rgba(212, 168, 64, 0.5);
+      background: transparent;
+      color: #d4a840;
+      padding: 9px 20px;
+      border-radius: 24px;
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      cursor: pointer;
+      font-family: Georgia, serif;
+      transition: background 0.2s;
+    }
+    .btn-outline:hover { background: rgba(212, 168, 64, 0.1); }
+
+    /* ── Scanning animation overlay ── */
+    #scan-anim {
+      position: fixed; inset: 0; z-index: 40;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.5s;
+    }
+    #scan-anim.visible { opacity: 1; }
+
+    .scan-corner {
+      position: absolute;
+      width: 32px; height: 32px;
+      border-color: rgba(212, 168, 64, 0.7);
+      border-style: solid;
+      border-width: 0;
+    }
+    .scan-corner.tl { top: 30%; left: 12%; border-top-width: 2px; border-left-width: 2px; }
+    .scan-corner.tr { top: 30%; right: 12%; border-top-width: 2px; border-right-width: 2px; }
+    .scan-corner.bl { bottom: 40%; left: 12%; border-bottom-width: 2px; border-left-width: 2px; }
+    .scan-corner.br { bottom: 40%; right: 12%; border-bottom-width: 2px; border-right-width: 2px; }
+
+    .scan-line {
+      position: absolute;
+      left: 12%; right: 12%;
+      height: 1px;
+      background: linear-gradient(to right, transparent, rgba(212, 168, 64, 0.8), transparent);
+      animation: scanLine 2.5s ease-in-out infinite;
+      top: 30%;
+    }
+    @keyframes scanLine {
+      0%   { top: 30%; opacity: 0; }
+      10%  { opacity: 1; }
+      90%  { opacity: 1; }
+      100% { top: 60%; opacity: 0; }
+    }
+
+    .scan-label {
+      position: absolute;
+      bottom: 36%;
+      left: 0; right: 0;
+      text-align: center;
+      color: rgba(212, 168, 64, 0.7);
+      font-size: 11px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+    }
+
+    /* ── Particles canvas ── */
+    #particles { position: fixed; inset: 0; z-index: 35; pointer-events: none; }
+
+    /* ── A-Frame scene ── */
+    a-scene {
+      position: fixed !important;
+      inset: 0 !important;
+      z-index: 10 !important;
+    }
+  </style>
+</head>
+<body>
+
+<!-- ════════════════════════════════════════
+     LOADING SCREEN
+════════════════════════════════════════ -->
+<div id="loading">
+  <div class="loading-crest">🍇</div>
+  <div>
+    <div class="loading-title">Chateau Tsinandali</div>
+    <div class="loading-sub" style="text-align:center; margin-top:4px;">Kakheti · Georgia · Est. 1886</div>
+  </div>
+  <div class="spinner"></div>
+  <div class="loading-hint">Preparing your living label experience…<br>Camera access will be requested shortly.</div>
+</div>
+
+
+<!-- ════════════════════════════════════════
+     INSTRUCTIONS SCREEN
+════════════════════════════════════════ -->
+<div id="instructions" class="hidden">
+  <div class="inst-icon">🍷</div>
+  <div>
+    <div class="inst-title" style="text-align:center;">Living Label</div>
+    <div class="inst-sub" style="color:#8a6a30; font-size:11px; letter-spacing:0.18em; text-align:center; margin-top:3px;">CHATEAU TSINANDALI</div>
+  </div>
+  <div class="inst-steps">
+    <div class="inst-step">
+      <div class="inst-step-num">1</div>
+      <div class="inst-step-text">Hold your phone steady and allow camera access</div>
+    </div>
+    <div class="inst-step">
+      <div class="inst-step-num">2</div>
+      <div class="inst-step-text">Point the camera at your Tsinandali bottle label</div>
+    </div>
+    <div class="inst-step">
+      <div class="inst-step-num">3</div>
+      <div class="inst-step-text">Watch the label come alive with the estate's story</div>
+    </div>
+  </div>
+  <button class="btn-start" onclick="startAR()">Begin Experience</button>
+  <div style="color:#5a4018; font-size:11px; letter-spacing:0.1em; text-align:center;">No app required · Works in your browser</div>
+</div>
+
+
+<!-- ════════════════════════════════════════
+     HUD BAR
+════════════════════════════════════════ -->
+<div id="hud">
+  <div>
+    <div class="hud-logo">Tsinandali</div>
+    <div class="hud-sub">Kakheti, Georgia</div>
+  </div>
+  <div class="hud-badge">
+    <div class="hud-dot"></div>
+    <span class="hud-badge-text">AR Live</span>
+  </div>
+</div>
+
+
+<!-- ════════════════════════════════════════
+     SCANNING ANIMATION
+════════════════════════════════════════ -->
+<div id="scan-anim" class="visible">
+  <div class="scan-corner tl"></div>
+  <div class="scan-corner tr"></div>
+  <div class="scan-corner bl"></div>
+  <div class="scan-corner br"></div>
+  <div class="scan-line"></div>
+  <div class="scan-label">Point at wine label</div>
+</div>
+
+
+<!-- ════════════════════════════════════════
+     PARTICLES
+════════════════════════════════════════ -->
+<canvas id="particles"></canvas>
+
+
+<!-- ════════════════════════════════════════
+     STORY PANEL
+════════════════════════════════════════ -->
+<div id="story-panel">
+  <div class="panel-divider"></div>
+  <div class="panel-estate">Estate Wine · Georgian Republic</div>
+  <div class="panel-title">Tsinandali</div>
+  <div class="panel-region">Kakheti · Alazani Valley · 1886</div>
+
+  <p class="story-text">
+    Born where the Alazani River meets the Caucasus foothills, Tsinandali carries 
+    eight generations of Georgian winemaking. These Rkatsiteli and Mtsvane grapes 
+    ripen under 300 days of Kakhetian sun before resting in oak — a tradition older 
+    than the estate itself.
+  </p>
+
+  <div class="facts-row">
+    <div class="fact">
+      <div class="fact-val">2022</div>
+      <div class="fact-label">Vintage</div>
+    </div>
+    <div class="fact">
+      <div class="fact-val">Rkatsiteli</div>
+      <div class="fact-label">Grape</div>
+    </div>
+    <div class="fact">
+      <div class="fact-val">Kakheti</div>
+      <div class="fact-label">Region</div>
+    </div>
+    <div class="fact">
+      <div class="fact-val">12.5%</div>
+      <div class="fact-label">Alcohol</div>
+    </div>
+  </div>
+
+  <div class="btn-row">
+    <button class="btn-outline" onclick="openLink('https://www.gws.ge')">Visit Estate ↗</button>
+    <button class="btn-outline" onclick="shareLabel()">Share Experience</button>
+  </div>
+</div>
+
+
+<!-- ════════════════════════════════════════
+     A-FRAME / MIND AR SCENE
+     
+     HOW TO USE YOUR OWN LABEL:
+     1. Go to https://hiukim.github.io/mind-ar-js-doc/tools/compile
+     2. Upload a clear photo of your Tsinandali label
+     3. Download the generated .mind file
+     4. Replace "targets/saperavi.mind" below with your file path
+     5. Upload your .mind file alongside this HTML
+════════════════════════════════════════ -->
+<a-scene
+  mindar-image="imageTargetSrc: targets/saperavi.mind; autoStart: false; uiLoading: no; uiError: no; uiScanning: no;"
+  color-space="sRGB"
+  renderer="colorManagement: true; physicallyCorrectLights: true;"
+  vr-mode-ui="enabled: false"
+  device-orientation-permission-ui="enabled: false"
+  id="ar-scene"
+>
+
+  <a-assets>
+    <!--
+      REPLACE THESE with your real assets:
+      • label-video.mp4  — your winemaker/vineyard story video
+      • logo.png         — Chateau Tsinandali logo (transparent PNG)
+      • bg-music.mp3     — optional ambient Georgian music (keep it short)
+    -->
+    <video id="label-video" src="assets/label-video.mp4"
+      playsinline webkit-playsinline muted loop
+      preload="auto" crossorigin="anonymous">
+    </video>
+    <!-- <img id="logo" src="assets/logo.png" crossorigin="anonymous" /> -->
+  </a-assets>
+
+  <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
+
+  <!-- ── AR Target: everything inside appears on top of the label ── -->
+  <a-entity mindar-image-target="targetIndex: 0">
+
+    <!-- VIDEO PLANE — plays your story video on top of the label -->
+    <!-- Scale 1 = roughly the same width as the label; adjust as needed -->
+    <a-video
+      src="#label-video"
+      position="0 0.05 0.001"
+      width="1" height="0.56"
+      rotation="0 0 0"
+    ></a-video>
+
+    <!-- GOLD FRAME around the video -->
+    <a-entity position="0 0.05 0">
+      <!-- top bar -->
+      <a-box position="0  0.295 0" width="1.04" height="0.01" depth="0.002" color="#d4a840"></a-box>
+      <!-- bottom bar -->
+      <a-box position="0 -0.195 0" width="1.04" height="0.01" depth="0.002" color="#d4a840"></a-box>
+      <!-- left bar -->
+      <a-box position="-0.52 0.05 0" width="0.01" height="0.51" depth="0.002" color="#d4a840"></a-box>
+      <!-- right bar -->
+      <a-box position=" 0.52 0.05 0" width="0.01" height="0.51" depth="0.002" color="#d4a840"></a-box>
+    </a-entity>
+
+    <!-- ESTATE NAME text above video -->
+    <a-text
+      value="CHATEAU TSINANDALI"
+      position="0 0.36 0.002"
+      align="center"
+      color="#d4a840"
+      width="1.8"
+      font="https://cdn.jsdelivr.net/npm/aframe/examples/test/assets/fonts/mozillavr.fnt"
+    ></a-text>
+
+    <!-- YEAR text below video -->
+    <a-text
+      value="Kakheti · Georgia · 2022"
+      position="0 -0.26 0.002"
+      align="center"
+      color="#c8a060"
+      width="1.4"
+    ></a-text>
+
+    <!-- PARTICLE SPARKLES: floating gold orbs -->
+    <a-entity id="sparkles">
+      <a-sphere position="-0.38  0.55 0.05" radius="0.015" color="#d4a840" opacity="0.8"
+        animation="property: position; to: -0.38 0.70 0.05; dur: 2000; dir: alternate; loop: true; easing: easeInOutSine"></a-sphere>
+      <a-sphere position=" 0.38  0.55 0.05" radius="0.012" color="#e8bc54" opacity="0.7"
+        animation="property: position; to: 0.38 0.68 0.05; dur: 2400; dir: alternate; loop: true; easing: easeInOutSine"></a-sphere>
+      <a-sphere position="0     0.65 0.05" radius="0.010" color="#f0d080" opacity="0.6"
+        animation="property: position; to: 0 0.80 0.05; dur: 1800; dir: alternate; loop: true; easing: easeInOutSine"></a-sphere>
+      <a-sphere position="-0.20 0.60 0.04" radius="0.008" color="#d4a840" opacity="0.5"
+        animation="property: position; to: -0.20 0.74 0.04; dur: 2200; dir: alternate; loop: true; easing: easeInOutSine"></a-sphere>
+      <a-sphere position=" 0.20 0.62 0.04" radius="0.008" color="#e8bc54" opacity="0.5"
+        animation="property: position; to: 0.20 0.76 0.04; dur: 1600; dir: alternate; loop: true; easing: easeInOutSine"></a-sphere>
+    </a-entity>
+
+    <!-- GRAPE ICON (decorative, left side) -->
+    <a-text value="🍇" position="-0.56 0.05 0.003" align="center" width="0.6"></a-text>
+    <!-- WINE ICON (decorative, right side) -->
+    <a-text value="🍷" position=" 0.56 0.05 0.003" align="center" width="0.6"></a-text>
+
+  </a-entity>
+
+</a-scene>
+
+
+<!-- ════════════════════════════════════════
+     SCRIPTS
+════════════════════════════════════════ -->
+<script>
+// ── State ──────────────────────────────────────
+let arStarted = false;
+let labelFound = false;
+let sceneEl, mindarSystem;
+
+// ── Loading → Instructions ─────────────────────
+window.addEventListener('load', () => {
+  setTimeout(() => {
+    document.getElementById('loading').classList.add('hidden');
+    document.getElementById('instructions').classList.remove('hidden');
+  }, 2200);
+});
+
+// ── Start AR ───────────────────────────────────
+function startAR() {
+  document.getElementById('instructions').classList.add('hidden');
+  document.getElementById('hud').classList.add('visible');
+  document.getElementById('scan-anim').classList.add('visible');
+
+  sceneEl = document.getElementById('ar-scene');
+
+  // Wait for scene to be ready, then start tracking
+  sceneEl.addEventListener('loaded', () => {
+    mindarSystem = sceneEl.systems['mindar-image-system'];
+    if (mindarSystem) mindarSystem.start();
+  });
+
+  if (sceneEl.hasLoaded) {
+    mindarSystem = sceneEl.systems['mindar-image-system'];
+    if (mindarSystem) mindarSystem.start();
+  }
+
+  setupAREvents();
+  arStarted = true;
+  startParticles();
+}
+
+// ── AR target found / lost ─────────────────────
+function setupAREvents() {
+  sceneEl = document.getElementById('ar-scene');
+
+  const targetEl = sceneEl.querySelector('[mindar-image-target]');
+
+  targetEl.addEventListener('targetFound', () => {
+    if (labelFound) return;
+    labelFound = true;
+    console.log('Label detected!');
+
+    const vid = document.getElementById('label-video');
+    if (vid) vid.play().catch(() => {});
+
+    document.getElementById('scan-anim').classList.remove('visible');
+    document.getElementById('story-panel').classList.add('visible');
+
+    if (navigator.vibrate) navigator.vibrate([60, 40, 80]);
+  });
+
+  targetEl.addEventListener('targetLost', () => {
+    labelFound = false;
+    const vid = document.getElementById('label-video');
+    if (vid) vid.pause();
+
+    document.getElementById('story-panel').classList.remove('visible');
+    document.getElementById('scan-anim').classList.add('visible');
+  });
+}
+
+// ── Canvas particle effect (floating gold motes) ─
+function startParticles() {
+  const canvas = document.getElementById('particles');
+  const ctx = canvas.getContext('2d');
+
+  function resize() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+  }
+  resize();
+  window.addEventListener('resize', resize);
+
+  const motes = Array.from({ length: 38 }, () => ({
+    x: Math.random() * canvas.width,
+    y: canvas.height + Math.random() * 200,
+    r: Math.random() * 2.2 + 0.4,
+    speed: Math.random() * 0.6 + 0.3,
+    alpha: Math.random() * 0.5 + 0.1,
+    drift: (Math.random() - 0.5) * 0.4,
+    hue: Math.random() * 20 + 35,
+  }));
+
+  function tick() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    motes.forEach(m => {
+      m.y -= m.speed;
+      m.x += m.drift;
+      if (m.y < -10) {
+        m.y = canvas.height + 10;
+        m.x = Math.random() * canvas.width;
+      }
+      ctx.beginPath();
+      ctx.arc(m.x, m.y, m.r, 0, Math.PI * 2);
+      ctx.fillStyle = `hsla(${m.hue}, 75%, 65%, ${m.alpha})`;
+      ctx.fill();
+    });
+    requestAnimationFrame(tick);
+  }
+  tick();
+}
+
+// ── Share ──────────────────────────────────────
+function shareLabel() {
+  if (navigator.share) {
+    navigator.share({
+      title: 'Chateau Tsinandali — Living Label',
+      text: 'I just unlocked the living label experience for Chateau Tsinandali! Point your phone at the bottle. 🍇🍷',
+      url: window.location.href,
+    }).catch(() => {});
+  } else {
+    navigator.clipboard.writeText(window.location.href).then(() => {
+      alert('Link copied to clipboard!');
+    }).catch(() => {
+      alert('Share this URL: ' + window.location.href);
+    });
+  }
+}
+
+// ── Link helper ───────────────────────────────
+function openLink(url) {
+  window.open(url, '_blank', 'noopener');
+}
+</script>
+
+</body>
+</html>
