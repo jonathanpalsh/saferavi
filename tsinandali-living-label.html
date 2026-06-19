@@ -397,9 +397,9 @@
   <div class="panel-region">Kakheti · Alazani Valley · 1886</div>
 
   <p class="story-text">
-    Born where the Alazani River meets the Caucasus foothills, Tsinandali carries 
-    eight generations of Georgian winemaking. These Rkatsiteli and Mtsvane grapes 
-    ripen under 300 days of Kakhetian sun before resting in oak — a tradition older 
+    Born where the Alazani River meets the Caucasus foothills, Tsinandali carries
+    eight generations of Georgian winemaking. These Saperavi grapes
+    ripen under 300 days of Kakhetian sun before resting in oak — a tradition older
     than the estate itself.
   </p>
 
@@ -409,7 +409,7 @@
       <div class="fact-label">Vintage</div>
     </div>
     <div class="fact">
-      <div class="fact-val">Rkatsiteli</div>
+      <div class="fact-val">Saperavi</div>
       <div class="fact-label">Grape</div>
     </div>
     <div class="fact">
@@ -553,6 +553,10 @@ function startAR() {
   document.getElementById('instructions').classList.add('hidden');
   document.getElementById('hud').classList.add('visible');
   document.getElementById('scan-anim').classList.add('visible');
+
+  // Pre-unlock video playback during this user gesture (iOS requirement)
+  const vid = document.getElementById('fullscreen-video');
+  if (vid) { vid.play().then(() => vid.pause()).catch(() => {}); }
 
   sceneEl = document.getElementById('ar-scene');
 
